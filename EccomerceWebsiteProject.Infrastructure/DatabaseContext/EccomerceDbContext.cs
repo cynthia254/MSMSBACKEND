@@ -5,6 +5,7 @@ using EccomerceWebsiteProject.Core.Models.Products.Category;
 using EccomerceWebsiteProject.Core.Models.Products.CreateProduct;
 using EccomerceWebsiteProject.Core.Models.Products.EditProduct;
 using EccomerceWebsiteProject.Core.Models.Roles;
+using EccomerceWebsiteProject.Core.Models.STK_responses;
 using EccomerceWebsiteProject.Core.Models.Stores;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
@@ -51,6 +52,7 @@ namespace EccomerceWebsiteProject.Infrastructure.DatabaseContext
         public DbSet<Order> OrderList { get; set; }
         public DbSet<ProductData> ProductData { get; set; }
         public DbSet<PaymentData> Payment { get; set; }
+        public DbSet<STK_Responses> STK_Responses { get; set; }
 
     }
 }

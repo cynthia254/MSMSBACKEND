@@ -32,6 +32,11 @@ using System.Net.Http;
 using EccomerceWebsiteProject.Core.DTOS.MPesaResponse;
 using Newtonsoft.Json.Linq;
 using Microsoft.AspNetCore.Http.HttpResults;
+using EccomerceWebsiteProject.Core.Models.STK_responses;
+using Azure.Core;
+using System.IO;
+using System.Threading.Tasks;
+using System.Reflection;
 
 namespace EccomerceWebsiteProject.Infrastructure.Services.ProductServices
 {
@@ -2864,16 +2869,38 @@ namespace EccomerceWebsiteProject.Infrastructure.Services.ProductServices
                     scopedContext.Payment.Add(cashPayment);
                     await scopedContext.SaveChangesAsync();
 
+                    if (cashPayment.BalanceRemaining == 0)
+                    {
+                        existingOrder.Status = "Complete";
+                        scopedContext.Update(existingOrder);
+                    }
+
                     // Update order status and remaining balance for cash payment
                     if (totalPaidAmount + paymentData.AmountPaid < paymentData.TotalOrderAmount)
                     {
                         // If amount paid is less than total order amount
                         cashPayment.Status = "Partially Paid";
-                        existingOrder.Status = "Partially Paid";
-                        scopedContext.Update(existingOrder);
+
+                        // Retrieve all orders associated with the customer
+                        var customerOrders = scopedContext.Order
+                                                           .Where(o => o.OrderNo == existingOrder.OrderNo)
+                                                           .ToList();
+
+                        foreach (var order in customerOrders)
+                        {
+                            // Update each order's status to "Partially Paid"
+                            order.Status = "Partially Paid";
+                            scopedContext.Update(order);
+                        }
+
+                        // Update the remaining balance for the cash payment
                         decimal remainingBalance = paymentData.TotalOrderAmount - (totalPaidAmount + paymentData.AmountPaid);
                         cashPayment.BalanceRemaining = remainingBalance;
+
+                        // Update the cash payment in the database
+                        scopedContext.Update(cashPayment);
                     }
+
                     else if (totalPaidAmount + paymentData.AmountPaid >= paymentData.TotalOrderAmount)
                     {
                         // If amount paid equals or exceeds total order amount
@@ -2910,6 +2937,7 @@ namespace EccomerceWebsiteProject.Infrastructure.Services.ProductServices
                                 }
 
                                 scopedContext.ProductsDB.Update(product);
+                                await scopedContext.SaveChangesAsync();
                             }
                         }
 
@@ -3152,9 +3180,9 @@ namespace EccomerceWebsiteProject.Infrastructure.Services.ProductServices
                     var passkey = "bfb279f9aa9bdbcf158e97dd71a467cd2e0c893059b10f78e6b72ada1ed2c919";
                     var ShortCode = "174379";
                     var encoded_pass = Convert.ToBase64String(Encoding.UTF8.GetBytes($"{ShortCode}{passkey}{timestamp}"));
-                    // Use your webhook.site URL as the Callback URL
-                    string webhookUrl = "https://webhook.site/1cbc1e2c-c0c0-40ab-bad5-f0244c37bd64";
 
+                    string webhookUrl = "https://58b9-197-248-39-241.ngrok-free.app/api/Product/CallBackResponse";
+                 
                     var requestBody = new
                     {
                         BusinessShortCode = ShortCode,
@@ -3170,11 +3198,13 @@ namespace EccomerceWebsiteProject.Infrastructure.Services.ProductServices
                         TransactionDesc = "Payment for order " + paymentData.OrderNo
                     };
 
+
                     var jsonBody = JsonConvert.SerializeObject(requestBody);
                     var content = new StringContent(jsonBody, Encoding.UTF8, "application/json");
 
                     string url = "https://sandbox.safaricom.co.ke/mpesa/stkpush/v1/processrequest";
-                    var response = await client.PostAsync(url, content);
+                    var response = await client.PostAsync(url,content);
+
                     var responseContent = await response.Content.ReadAsStringAsync();
 
                     Console.WriteLine("Request Body: " + jsonBody);
@@ -3182,20 +3212,21 @@ namespace EccomerceWebsiteProject.Infrastructure.Services.ProductServices
 
                     if (response.IsSuccessStatusCode)
                     {
-                        var json_resp_body = JsonConvert.DeserializeObject<STK_Response>(responseContent);
-                        var new_response_body = new STK_Response
-                        {
-                            MerchantRequestID = json_resp_body.MerchantRequestID,
-                            CheckoutRequestID = json_resp_body.CheckoutRequestID,
-                            ResponseCode = json_resp_body.ResponseCode,
-                            ResponseDescription = json_resp_body.ResponseDescription,
-                            CustomerMessage = json_resp_body.CustomerMessage,
-                            ReferenceNumber = requestBody.AccountReference
-                        };
 
-                        await scopedContext.AddAsync(new_response_body);
+
+                        ////var json_resp_body = JsonConvert.DeserializeObject<STK_Responses>(responseContent);
+                        ////var new_response_body = new STK_Responses
+                        ////{
+                        ////    MerchantRequestID = json_resp_body.MerchantRequestID,
+                        ////    CheckoutRequestID = json_resp_body.CheckoutRequestID,
+                        ////    ResponseCode = json_resp_body.ResponseCode,
+                        ////    ResponseDescription = json_resp_body.ResponseDescription,
+                        ////    CustomerMessage = json_resp_body.CustomerMessage,
+                        ////    ReferenceNumber = requestBody.AccountReference
+                        ////};
+                        ////await scopedContext.AddAsync(new_response_body);
                         await scopedContext.SaveChangesAsync();
-                        return new BaseResponse("200", "Payment processed successfully", responseContent);
+                        return new BaseResponse("200", "Payment processed successfully",responseContent);
                     }
 
                     else
@@ -3229,6 +3260,163 @@ namespace EccomerceWebsiteProject.Infrastructure.Services.ProductServices
                 return new BaseResponse("500", $"Exception occurred: {ex.Message}", null);
             }
         }
+        public async Task<BaseResponse> StkCallback(CallbackRequest callbackRequest)
+        {
+            try
+            {
+                Console.WriteLine("Received Callback Request: " + JsonConvert.SerializeObject(callbackRequest));
+
+                using (var scope = _serviceScopeFactory.CreateScope())
+                {
+                    var scopedContext = scope.ServiceProvider.GetRequiredService<EccomerceDbContext>();
+
+                    var stkCallback = callbackRequest.Body.StkCallback;
+
+                    // Check if data already exists
+                    var existingResponse = scopedContext.STK_Responses
+                        .FirstOrDefault(r => r.MerchantRequestID == stkCallback.MerchantRequestID);
+
+                    if (existingResponse != null)
+                    {
+                        // Update existing response
+                        existingResponse.CheckoutRequestID = stkCallback.CheckoutRequestID;
+                        existingResponse.ResponseCode = stkCallback.ResultCode;
+                        existingResponse.ResponseDescription = stkCallback.ResultDesc;
+
+                        scopedContext.STK_Responses.Update(existingResponse);
+                    }
+                    else
+                    {
+                        // Create new response entry
+                        var newResponse = new STK_Responses
+                        {
+                            MerchantRequestID = stkCallback.MerchantRequestID,
+                            CheckoutRequestID = stkCallback.CheckoutRequestID,
+                            ResponseCode = stkCallback.ResultCode,
+                            ResponseDescription = stkCallback.ResultDesc,
+                            ReferenceNumber = "MSMS",
+                            CustomerMessage = stkCallback.ResultDesc,
+                            TransactionID = Guid.NewGuid(),
+                        };
+
+                        await scopedContext.STK_Responses.AddAsync(newResponse);
+                    }
+
+                    // Save changes for response entry
+                    await scopedContext.SaveChangesAsync();
+
+                    // If ResponseCode is 0, update the order and payment
+                    if (stkCallback.ResultCode == 0)
+                    {
+                        var order = scopedContext.Order.FirstOrDefault(o => o.OrderNo == stkCallback.OrderNo);
+                        if (order != null)
+                        {
+                            // Retrieve the current total amount paid for this order
+                            var totalPaidAmount = scopedContext.Payment
+                                .Where(p => p.OrderNo == stkCallback.OrderNo)
+                                .Sum(p => p.AmountPaid);
+
+                            // Calculate new balance remaining
+                            decimal balanceRemaining = order.TotalOrderAmount - totalPaidAmount;
+
+                            // Update order details
+                            order.Status = balanceRemaining <= 0 ? "Complete" : "Partially Paid";
+                            scopedContext.Update(order);
+
+                            // Update or create payment record
+                            var payment = new PaymentData
+                            {
+                                OrderNo = stkCallback.OrderNo,
+                                AmountPaid = stkCallback.Amount,
+                                PaymentMethod = "Mpesa", // Update as appropriate
+                                PhoneNumber = stkCallback.PhoneNumber,
+                                Status = balanceRemaining <= 0 ? "Complete" : "Partially Paid",
+                                DateUpdated = DateTime.Now,
+                                BalanceRemaining = balanceRemaining,
+                                TotalAmountPaid = totalPaidAmount + stkCallback.Amount
+                            };
+
+                            scopedContext.Payment.Add(payment);
+
+                            // Save changes
+                            await scopedContext.SaveChangesAsync();
+                        }
+                    }
+
+                    return new BaseResponse("200", "Successfully processed callback data", null);
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Internal server error: {ex.Message}");
+                return new BaseResponse("500", $"Internal server error: {ex.Message}", null);
+            }
+        }
+
+
+        public async Task ProcessRequestAsync(string requestBody)
+        {
+            try
+            {
+                // Deserialize the request body to a callback request object
+                var callbackRequest = JsonConvert.DeserializeObject<CallbackRequest>(requestBody);
+
+                // Validate the deserialized object
+                if (callbackRequest == null || callbackRequest.Body == null || callbackRequest.Body.StkCallback == null)
+                {
+                    throw new ArgumentException("Invalid callback request format.");
+                }
+
+                var stkCallback = callbackRequest.Body.StkCallback;
+
+                // Use a service scope to access the database context
+                using (var scope = _serviceScopeFactory.CreateScope())
+                {
+                    var scopedContext = scope.ServiceProvider.GetRequiredService<EccomerceDbContext>();
+
+                    // Check if the data already exists in the database
+                    var existingResponse = await scopedContext.STK_Responses
+                        .FirstOrDefaultAsync(r => r.MerchantRequestID == stkCallback.MerchantRequestID);
+
+                    if (existingResponse != null)
+                    {
+                        // Update the existing response
+                        existingResponse.CheckoutRequestID = stkCallback.CheckoutRequestID;
+                        existingResponse.ResponseCode = stkCallback.ResultCode;
+                        existingResponse.ResponseDescription = stkCallback.ResultDesc;
+                        scopedContext.STK_Responses.Update(existingResponse);
+                    }
+                    else
+                    {
+                        // Create a new response entry
+                        var newResponse = new STK_Responses
+                        {
+                            MerchantRequestID = stkCallback.MerchantRequestID,
+                            CheckoutRequestID = stkCallback.CheckoutRequestID,
+                            ResponseCode = stkCallback.ResultCode,
+                            ResponseDescription = stkCallback.ResultDesc,
+                            ReferenceNumber = "MSMS" // Adjust as necessary
+                        };
+
+                        await scopedContext.STK_Responses.AddAsync(newResponse);
+                    }
+
+                    // Save changes to the database
+                    await scopedContext.SaveChangesAsync();
+                }
+
+                // Log success or perform additional actions if needed
+                Console.WriteLine("Callback data processed successfully.");
+            }
+            catch (Exception ex)
+            {
+                // Log the error and handle exceptions
+                Console.WriteLine($"Error processing callback request: {ex.Message}");
+                // Optionally, you could throw or handle the exception based on your requirements
+                // throw;
+            }
+        }
+
 
         private async Task<string> GetAccessMpesaToken()
         {
@@ -3266,7 +3454,6 @@ namespace EccomerceWebsiteProject.Infrastructure.Services.ProductServices
                 var client = new RestClient("https://sandbox.safaricom.co.ke");
                 var request = new RestRequest("/oauth/v1/generate?grant_type=client_credentials", Method.Get);
 
-                // Concatenate and Base64 encode consumer_key:consumer_secret
                 string consumerKey = "58i4Q80LXlyXh5nnGZYttNkGAgZpGhNwLySelTSjcURSQ3G4";
                 string consumerSecret = "1jcygq9tFv78WWBMLDuBoRwkpUBXQYZzcLm9YrTb6iXJUFbiSBlCnCW8gqyF6EFV";
                 string credentials = $"{consumerKey}:{consumerSecret}";
@@ -3275,10 +3462,8 @@ namespace EccomerceWebsiteProject.Infrastructure.Services.ProductServices
 
                 request.AddHeader("Authorization", "Basic " + base64Auth);
 
-                // Execute request
                 RestResponse response = await client.ExecuteAsync(request);
 
-                // Check response and return access token
                 if (response.IsSuccessful)
                 {
                     dynamic jsonResponse = JsonConvert.DeserializeObject(response.Content);
@@ -3287,14 +3472,12 @@ namespace EccomerceWebsiteProject.Infrastructure.Services.ProductServices
                 }
                 else
                 {
-                    // Handle failure
                     Console.WriteLine($"Failed to retrieve access token. Status code: {response.StatusCode}, Content: {response.Content}");
                     return null;
                 }
             }
             catch (Exception ex)
             {
-                // Handle exception
                 Console.WriteLine($"Exception occurred while retrieving access token: {ex.Message}");
                 return null;
             }
@@ -3435,46 +3618,54 @@ namespace EccomerceWebsiteProject.Infrastructure.Services.ProductServices
                 return new BaseResponse("500", $"Exception occurred: {ex.Message}", null);
             }
         }
-      
+        public async Task<BaseResponse> GetDllVersion()
+        {
+            try
+            {
+                using (var httpClient = new HttpClient())
+                {
+                    var response = await httpClient.GetAsync("http://localhost:8888/api/GetDllVersion");
+                    response.EnsureSuccessStatusCode();
 
+                    var content = await response.Content.ReadAsStringAsync();
+                    Console.WriteLine(content);
 
+                   
+                    var versionInfo = JsonConvert.DeserializeObject<dynamic>(content);
+                    var version = versionInfo.version.ToString();
 
+                    return new BaseResponse("200", version, null);
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine(ex.Message);
+                return new BaseResponse("500", $"An error occurred while retrieving the DLL version: {ex.Message}", null);
+            }
+        }
+        public async Task<BaseResponse> ListDevices()
+        {
+            try
+            {
+                using (var httpClient = new HttpClient())
+                {
+                    // Call the endpoint to list devices
+                    var response = await httpClient.GetAsync("http://localhost:8888/api/listDevice");
+                    response.EnsureSuccessStatusCode();
 
+                    var content = await response.Content.ReadAsStringAsync();
+                    Console.WriteLine(content);
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+                    var devicesInfo = JsonConvert.DeserializeObject<dynamic>(content);
+                    return new BaseResponse("200", devicesInfo, null); 
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine(ex.Message);
+                return new BaseResponse("500", $"An error occurred: {ex.Message}", null);
+            }
+        }
 
 
     }
@@ -3483,7 +3674,52 @@ namespace EccomerceWebsiteProject.Infrastructure.Services.ProductServices
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 }
+
+
+
+
+
+
 
 
 

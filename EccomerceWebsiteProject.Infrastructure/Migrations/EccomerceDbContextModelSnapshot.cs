@@ -1092,6 +1092,40 @@ namespace EccomerceWebsiteProject.Infrastructure.Migrations
                     b.ToTable("CreateRole");
                 });
 
+            modelBuilder.Entity("EccomerceWebsiteProject.Core.Models.STK_responses.STK_Responses", b =>
+                {
+                    b.Property<Guid>("TransactionID")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("CheckoutRequestID")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("CustomerMessage")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("MerchantRequestID")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("ReferenceNumber")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("ResponseCode")
+                        .HasColumnType("int");
+
+                    b.Property<string>("ResponseDescription")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.HasKey("TransactionID");
+
+                    b.ToTable("STK_Responses");
+                });
+
             modelBuilder.Entity("EccomerceWebsiteProject.Core.Models.Stores.AddStore", b =>
                 {
                     b.Property<int>("StoreId")

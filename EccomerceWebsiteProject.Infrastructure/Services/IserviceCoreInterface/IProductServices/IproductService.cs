@@ -1,4 +1,5 @@
 ﻿using EccomerceWebsiteProject.Core.ConnectorClasses.Responses;
+using EccomerceWebsiteProject.Core.DTOS.MPesaResponse;
 using EccomerceWebsiteProject.Core.DTOS.Orders;
 using EccomerceWebsiteProject.Core.DTOS.PlatformUsers;
 using EccomerceWebsiteProject.Core.DTOS.Product.Categories;
@@ -7,6 +8,7 @@ using EccomerceWebsiteProject.Core.DTOS.Product.EditProduct;
 using EccomerceWebsiteProject.Core.DTOS.Product.Stores;
 using EccomerceWebsiteProject.Core.Models.Products.CreateProduct;
 using EccomerceWebsiteProject.Core.Models.Roles;
+using EccomerceWebsiteProject.Core.Models.STK_responses;
 using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
 
@@ -72,5 +74,12 @@ namespace EccomerceWebsiteProject.Infrastructure.Services.IserviceCoreInterface.
          Task<BaseResponse> MpesaSTKPushRequest(PaymentDatavm paymentData);
          Task<BaseResponse> GetPaymentByOrderNumber(string orderNumber);
          Task<BaseResponse> QueryTransactionStatus(string checkoutRequestId);
+        // Task<BaseResponse> StkCallback();
+         Task ProcessRequestAsync(string requestBody);
+        Task<BaseResponse> StkCallback(CallbackRequest callbackRequest);
+        Task<BaseResponse> GetDllVersion();
+        Task<BaseResponse> ListDevices();
+
+
     }
 }

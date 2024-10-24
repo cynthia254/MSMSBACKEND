@@ -11,14 +11,18 @@ using EccomerceWebsiteProject.Core.Models.PlatformUsers;
 using EccomerceWebsiteProject.Core.Models.Products.Category;
 using EccomerceWebsiteProject.Core.Models.Products.CreateProduct;
 using EccomerceWebsiteProject.Core.Models.Roles;
+using EccomerceWebsiteProject.Core.Models.STK_responses;
+using EccomerceWebsiteProject.Infrastructure.DatabaseContext;
 using EccomerceWebsiteProject.Infrastructure.Migrations;
 using EccomerceWebsiteProject.Infrastructure.Services.IserviceCoreInterface.IProductServices;
 using EccomerceWebsiteProject.Infrastructure.Services.ProductServices;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.DependencyInjection;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using System.Security.Claims;
+using System.Text;
 
 namespace EccomerceWebsiteProject.API.Controllers.ProductControllers
 {
@@ -29,7 +33,7 @@ namespace EccomerceWebsiteProject.API.Controllers.ProductControllers
     public class ProductController : Controller
     {
         private readonly IproductService _iproductService;
-      
+
 
         public ProductController(IproductService iproductServices)
         {
@@ -39,7 +43,7 @@ namespace EccomerceWebsiteProject.API.Controllers.ProductControllers
             //AddMethodPermission(nameof(AddStore), "CanAddStore");
 
         }
-       
+
 
         [HttpPost]
         [Route("AddCategory")]
@@ -62,7 +66,7 @@ namespace EccomerceWebsiteProject.API.Controllers.ProductControllers
 
                 var masterRoleCheckerResponse = await _iproductService.MasterRoleChecker(userId, roleClaimName);
 
-                if (masterRoleCheckerResponse|| loggedInUserData.Role== "Supplier")
+                if (masterRoleCheckerResponse || loggedInUserData.Role == "Supplier")
                 {
                     return await _iproductService.AddCategory(addCategoryVm);
                 }
@@ -284,7 +288,7 @@ namespace EccomerceWebsiteProject.API.Controllers.ProductControllers
 
                 if (masterRoleCheckerResponse || loggedInUserData.Role == "Admin")
                 {
-                    return await _iproductService.ConfirmMerchantAccount(merchantEmail,requestingUserEmail);
+                    return await _iproductService.ConfirmMerchantAccount(merchantEmail, requestingUserEmail);
                 }
                 else
                 {
@@ -296,7 +300,7 @@ namespace EccomerceWebsiteProject.API.Controllers.ProductControllers
                 return new BaseResponse("500", ex.Message, null);
             }
         }
-    
+
         [HttpGet]
         [Route("GettingLoggedInUser")]
         public async Task<BaseResponse> GetLoggedInUser()
@@ -400,7 +404,7 @@ namespace EccomerceWebsiteProject.API.Controllers.ProductControllers
 
                 if (masterRoleCheckerResponse || loggedInUserData.Role == "Supplier")
                 {
-                    return await _iproductService.AddProductToStore(storeId,productId,quantity);
+                    return await _iproductService.AddProductToStore(storeId, productId, quantity);
                 }
                 else
                 {
@@ -532,7 +536,7 @@ namespace EccomerceWebsiteProject.API.Controllers.ProductControllers
                 return new BaseResponse("500", ex.Message, null);
             }
         }
-    
+
         [HttpPost]
         [Route("GettingSubCategoryByMerchantID")]
         public async Task<BaseResponse> GetSubCategoryByMerchantID(Guid merchantId)
@@ -570,7 +574,7 @@ namespace EccomerceWebsiteProject.API.Controllers.ProductControllers
                 return new BaseResponse("500", ex.Message, null);
             }
         }
-    
+
         [HttpPost]
         [Route("GettingProductForStore")]
         public async Task<BaseResponse> GetProductsForStore(int storeId)
@@ -631,7 +635,7 @@ namespace EccomerceWebsiteProject.API.Controllers.ProductControllers
 
                 if (masterRoleCheckerResponse || loggedInUserData.Role == "Supplier")
                 {
-                    return await _iproductService.UpdateStockQuantity(productId,quantity);
+                    return await _iproductService.UpdateStockQuantity(productId, quantity);
                 }
                 else
                 {
@@ -846,7 +850,7 @@ namespace EccomerceWebsiteProject.API.Controllers.ProductControllers
 
                 if (masterRoleCheckerResponse || loggedInUserData.Role == "Supplier")
                 {
-                    return await _iproductService.CreateRoleWithPermissions(roleName,selectedPermissionNames);
+                    return await _iproductService.CreateRoleWithPermissions(roleName, selectedPermissionNames);
                 }
                 else
                 {
@@ -886,7 +890,7 @@ namespace EccomerceWebsiteProject.API.Controllers.ProductControllers
         [Route("AmendProduct")]
         public async Task<BaseResponse> AmendProduct(int productId, AmendProductvm amendProductVm)
         {
-            return await _iproductService.AmendProduct(productId,amendProductVm);
+            return await _iproductService.AmendProduct(productId, amendProductVm);
         }
         [HttpDelete]
         [Route("DeleteProduct")]
@@ -898,13 +902,13 @@ namespace EccomerceWebsiteProject.API.Controllers.ProductControllers
         [Route("ApplyProductToSale")]
         public async Task<BaseResponse> ApplySaleToProduct(int productId, double percentage, int durationMonths)
         {
-            return await _iproductService.ApplySaleToProduct(productId,percentage,durationMonths);
+            return await _iproductService.ApplySaleToProduct(productId, percentage, durationMonths);
         }
         [HttpPost]
         [Route("NotifyLowStockProducts")]
         public async Task<List<notification>> NotifyLowStockProducts(Guid loggedInMerchantId)
         {
-              return await _iproductService.NotifyLowStockProducts(loggedInMerchantId);
+            return await _iproductService.NotifyLowStockProducts(loggedInMerchantId);
         }
         [HttpPost]
         [Route("ActivateUser")]
@@ -1027,7 +1031,7 @@ namespace EccomerceWebsiteProject.API.Controllers.ProductControllers
         [Route("ArchiveProduct")]
         public async Task<BaseResponse> ArchiveProduct(int productId, string archivedReason)
         {
-            return await _iproductService.ArchiveProduct(productId,archivedReason);
+            return await _iproductService.ArchiveProduct(productId, archivedReason);
         }
         [HttpPost]
         [Route("CreateNewShift")]
@@ -1050,7 +1054,7 @@ namespace EccomerceWebsiteProject.API.Controllers.ProductControllers
 
                 var masterRoleCheckerResponse = await _iproductService.MasterRoleChecker(userId, roleClaimName);
 
-                if (masterRoleCheckerResponse || loggedInUserData.Role == "Supplier" )
+                if (masterRoleCheckerResponse || loggedInUserData.Role == "Supplier")
                 {
                     return await _iproductService.CreateNewShift();
                 }
@@ -1177,6 +1181,17 @@ namespace EccomerceWebsiteProject.API.Controllers.ProductControllers
         {
             return await _iproductService.GetPaymentByOrderNumber(orderNumber);
         }
+
+        [HttpPost]
+        [Route("CallBackResponse")]
+        public async Task<BaseResponse> StkCallback(CallbackRequest callbackRequest)
+        {
+            return await _iproductService.StkCallback(callbackRequest);
+        }
+
+
+
+
         [HttpPost]
         [Route("GetTransactionStatus")]
         public async Task<BaseResponse> QueryTransactionStatus(string checkoutRequestId)
@@ -1184,64 +1199,96 @@ namespace EccomerceWebsiteProject.API.Controllers.ProductControllers
             return await _iproductService.QueryTransactionStatus(checkoutRequestId);
         }
         [HttpPost]
-        [Route("CallBack")]
-        public async Task<BaseResponse> MpesaCallback([FromBody] CallBackResponse callbackData)
+        [Route("CallBackData")]
+        public async Task<IActionResult> CallBackData([FromBody] CallbackRequest model)
+        {
+            // Handle the callback data
+            return Ok();
+        }
+
+        [HttpPost]
+        [Route("ProcessRequest")]
+        public async Task ProcessRequestAsync(string requestBody)
+        {
+            await _iproductService.ProcessRequestAsync(requestBody);
+        }
+        [HttpGet]
+        [Route("GetDllVersion")]
+        public async Task<IActionResult> GetDllVersion()
         {
             try
             {
-                if (callbackData != null && callbackData.Body != null && callbackData.Body.StkCallback != null)
+                var dllVersion = await _iproductService.GetDllVersion();
+                if (dllVersion == null)
                 {
-                    var merchantRequestID = callbackData.Body.StkCallback.MerchantRequestID;
-                    var checkoutRequestID = callbackData.Body.StkCallback.CheckoutRequestID;
-                    var resultCode = callbackData.Body.StkCallback.ResultCode;
-                    var resultDesc = callbackData.Body.StkCallback.ResultDesc;
-
-                    // Process based on resultCode
-                    if (resultCode == 0)
-                    {
-                        var amount = callbackData.Body.StkCallback.CallbackMetadata?.Item?.FirstOrDefault(item => item.Name == "Amount")?.Value;
-                        var mpesaReceiptNumber = callbackData.Body.StkCallback.CallbackMetadata?.Item?.FirstOrDefault(item => item.Name == "MpesaReceiptNumber")?.Value;
-                        var transactionDate = callbackData.Body.StkCallback.CallbackMetadata?.Item?.FirstOrDefault(item => item.Name == "TransactionDate")?.Value;
-                        var phoneNumber = callbackData.Body.StkCallback.CallbackMetadata?.Item?.FirstOrDefault(item => item.Name == "PhoneNumber")?.Value;
-
-                        // Perform further processing (e.g., database updates, business logic)
-                        Console.WriteLine($"Payment successful. Amount: {amount}, Receipt Number: {mpesaReceiptNumber}, Date: {transactionDate}, Phone: {phoneNumber}");
-
-                        // Return success response to M-Pesa or client
-                        return new BaseResponse("200", "success",null);
-                    }
-                    else if (resultCode == 1)
-                    {
-                        Console.WriteLine("Payment failed: Insufficient balance");
-
-                        // Return failure response to M-Pesa or client
-                        return new BaseResponse("201", "Insufficient Balance", null);
-                    }
-                    else
-                    {
-                        Console.WriteLine($"Payment result code {resultCode}: {resultDesc}");
-
-                        // Return failure response to M-Pesa or client
-                        return new BaseResponse("300", $"Payment result code {resultCode}: {resultDesc}", null);
-                    }
+                    return NotFound(new { error = "DLL version not found." });
                 }
-                else
-                {
-                    Console.WriteLine("Invalid callback data or missing stkCallback object.");
-                    return new BaseResponse ("400","Invalid callback data",null);
-                }
+
+                return Ok(new { version = dllVersion.Message });
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Exception occurred: {ex.Message}");
-                return new BaseResponse ("500", "Exception occurred",null);
+                return StatusCode(500, new { error = "An error occurred while retrieving the DLL version.", details = ex.Message });
+            }
+        }
+        [HttpGet("list")]
+        public async Task<ActionResult<BaseResponse>> ListDevices()
+        {
+            try
+            {
+                using (var httpClient = new HttpClient())
+                {
+                    var response = await httpClient.GetAsync("http://localhost:8888/api/listDevice");
+                    var content = await response.Content.ReadAsStringAsync();
+
+                    // Log the status code and response content for debugging
+                    Console.WriteLine($"Status Code: {response.StatusCode}");
+                    Console.WriteLine("Response Content: " + content);
+
+                    if (!response.IsSuccessStatusCode)
+                    {
+                        // Handle non-success responses (4xx or 5xx)
+                        return StatusCode((int)response.StatusCode, new BaseResponse("400", null, "Error: " + content));
+                    }
+
+                    // Deserialize content
+                    var devicesInfo = JsonConvert.DeserializeObject<List<Device>>(content);
+
+                    if (devicesInfo == null || devicesInfo.Count == 0)
+                    {
+                        // Handle the case where no devices are found
+                        return NotFound(new BaseResponse("404", null, "No devices found."));
+                    }
+
+                    return Ok(new BaseResponse("200", devicesInfo, null));
+                }
+            }
+            catch (HttpRequestException httpEx)
+            {
+                Console.WriteLine($"HTTP Request Error: {httpEx.Message}");
+                return StatusCode(500, new BaseResponse("500", "Error calling external API.", null));
+            }
+            catch (JsonException jsonEx)
+            {
+                Console.WriteLine($"JSON Deserialization Error: {jsonEx.Message}");
+                return StatusCode(500, new BaseResponse("500", "Error deserializing response.", null));
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"General Error: {ex.Message}");
+                return StatusCode(500, new BaseResponse("500", $"An error occurred: {ex.Message}", null));
             }
         }
 
 
+    
 
-    }
+
+
+
+
 }
+
 
 
 

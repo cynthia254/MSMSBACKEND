@@ -100,6 +100,14 @@ builder.Services.AddSwaggerGen();
 
 var app = builder.Build();
 
+
+// Ensure buffering is enabled before other middleware
+app.Use(async (context, next) =>
+{
+    context.Request.EnableBuffering();
+    await next();
+});
+
 app.UseCors(options =>
 {
     options.AllowAnyOrigin()
